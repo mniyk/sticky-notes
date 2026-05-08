@@ -1,0 +1,192 @@
+import { ScrollView, TextEdit, LineEdit } from "std-widgets.slint";
+
+struct NoteItem {
+    id: string,
+    title: string,
+    preview: string,
+}
+
+// ─── サイドバー（常時表示・右端固定）────────────────────────────
+export component SidebarWindow inherits Window {
+    title: "付箋";
+    always-on-top: true;
+    background: #2b2b2b;
+
+    in-out property <[NoteItem]> notes: [];
+    in-out property <string> active-id: "";
+
+    callback new-note();
+    callback open-note(string);
+
+    VerticalLayout {
+        padding: 0px;
+        spacing: 0px;
+
+        Rectangle {
+            height: 44px;
+            background: #1e1e1e;
+
+            HorizontalLayout {
+                padding-left: 12px;
+                padding-right: 8px;
+                alignment: space-between;
+
+                Text {
+                    text: "付箋";
+                    color: #e0e0e0;
+                    font-size: 14px;
+                    font-weight: 600;
+                    vertical-alignment: center;
+                }
+
+                Rectangle {
+                    width: 32px;
+                    height: 32px;
+                    border-radius: 6px;
+                    background: add-ta.has-hover ? #4a9eff : #3a3a3a;
+                    Text { text: "+"; color: #fff; font-size: 20px; horizontal-alignment: center; vertical-alignment: center; }
+                    add-ta := TouchArea { clicked => { root.new-note(); } }
+                }
+            }
+        }
+
+        ScrollView {
+            VerticalLayout {
+                spacing: 0px;
+                padding: 0px;
+
+                for note[i] in root.notes: Rectangle {
+                    height: 62px;
+                    background: row-ta.has-hover ? #383838
+                              : (note.id == root.active-id ? #2d3748 : #2b2b2b);
+
+                    VerticalLayout {
+                        padding-left: 14px;
+                        padding-right: 10px;
+                        padding-top: 10px;
+                        padding-bottom: 10px;
+                        spacing: 4px;
+
+                        Text {
+                            text: note.title;
+                            color: note.id == root.active-id ? #7cb9ff : #e0e0e0;
+                            font-size: 13px;
+                            font-weight: 600;
+                            overflow: elide;
+                        }
+                        Text {
+                            text: note.preview;
+                            color: #888;
+                            font-size: 11px;
+                            overflow: elide;
+                        }
+                    }
+
+                    Rectangle { y: parent.height - 1px; height: 1px; background: #363636; }
+
+                    row-ta := TouchArea { clicked => { root.open-note(note.id); } }
+                }
+
+                if root.notes.length == 0: Rectangle {
+                    height: 100px;
+                    Text {
+                        text: "+ で付箋を追加";
+                        color: #555;
+                        font-size: 12px;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ─── エディタ（付箋クリックで開く別ウィンドウ）──────────────────
+export component EditorWindow inherits Window {
+    title: "付箋 - 編集";
+    always-on-top: true;
+    background: #2b2b2b;
+
+    in-out property <string> edit-id: "";
+    in-out property <string> edit-title: "";
+    in-out property <string> edit-content: "";
+    in-out property <bool> confirm-delete: false;
+
+    callback save-note(string, string, string);
+    callback delete-note(string);
+
+    if root.confirm-delete: Rectangle {
+        background: #1a1a1a;
+        VerticalLayout {
+            alignment: center;
+            spacing: 16px;
+            padding: 32px;
+
+            Text { text: "この付箋を削除しますか？"; color: #e0e0e0; font-size: 14px; horizontal-alignment: center; wrap: word-wrap; }
+
+            HorizontalLayout {
+                spacing: 12px;
+                alignment: center;
+
+                Rectangle {
+                    width: 88px; height: 36px; border-radius: 6px;
+                    background: cancel-ta.has-hover ? #444 : #333;
+                    Text { text: "キャンセル"; color: #e0e0e0; font-size: 12px; horizontal-alignment: center; vertical-alignment: center; }
+                    cancel-ta := TouchArea { clicked => { root.confirm-delete = false; } }
+                }
+                Rectangle {
+                    width: 72px; height: 36px; border-radius: 6px;
+                    background: ok-ta.has-hover ? #dc2626 : #ef4444;
+                    Text { text: "削除"; color: #fff; font-size: 12px; font-weight: 600; horizontal-alignment: center; vertical-alignment: center; }
+                    ok-ta := TouchArea { clicked => { root.confirm-delete = false; root.delete-note(root.edit-id); } }
+                }
+            }
+        }
+    }
+
+    if !root.confirm-delete: VerticalLayout {
+        padding: 0px;
+        spacing: 0px;
+
+        Rectangle {
+            height: 44px;
+            background: #1e1e1e;
+            HorizontalLayout {
+                padding-left: 8px;
+                padding-right: 8px;
+                alignment: end;
+                Rectangle {
+                    width: 60px; height: 32px; border-radius: 6px;
+                    background: del-ta.has-hover ? #b91c1c : #dc2626;
+                    Text { text: "削除"; color: #fff; font-size: 12px; font-weight: 600; horizontal-alignment: center; vertical-alignment: center; }
+                    del-ta := TouchArea { clicked => { root.confirm-delete = true; } }
+                }
+            }
+        }
+
+        Rectangle { height: 1px; background: #363636; }
+
+        Rectangle {
+            height: 45px;
+            background: #2b2b2b;
+            LineEdit {
+                x: 12px; y: 0px;
+                width: parent.width - 24px;
+                height: 44px;
+                text <=> root.edit-title;
+                placeholder-text: "タイトル";
+                font-size: 15px;
+                edited => { root.save-note(root.edit-id, root.edit-title, root.edit-content); }
+            }
+            Rectangle { y: 44px; height: 1px; background: #363636; }
+        }
+
+        TextEdit {
+            text <=> root.edit-content;
+            font-size: 13px;
+            wrap: word-wrap;
+            edited => { root.save-note(root.edit-id, root.edit-title, root.edit-content); }
+        }
+    }
+}
